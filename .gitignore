@@ -3,3 +3,5 @@ __pycache__/
 *.pyc
 .env
 .git_repo/
+requirement.txt
+requirements.txt
