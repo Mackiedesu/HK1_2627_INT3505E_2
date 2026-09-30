@@ -99,5 +99,45 @@ def delete_post(post_id):
     return "", 204
 
 
+# 6. GET /api/v1/posts/<id>/tags - Danh sách thẻ của một bài viết
+@app.get("/api/v1/posts/<int:post_id>/tags")
+def get_post_tags(post_id):
+    post = next((p for p in POSTS if p["id"] == post_id), None)
+    if not post:
+        return jsonify(error="Post not found"), 404
+    return jsonify(post.get("tags", [])), 200
+
+
+# 7. POST /api/v1/posts/<id>/tags - Gắn thêm thẻ vào bài viết
+@app.post("/api/v1/posts/<int:post_id>/tags")
+def add_post_tag(post_id):
+    post = next((p for p in POSTS if p["id"] == post_id), None)
+    if not post:
+        return jsonify(error="Post not found"), 404
+
+    payload = request.get_json(silent=True) or {}
+    tag = (payload.get("tag") or "").strip().lower()
+
+    if not tag:
+        return jsonify(error="tag is required"), 422
+
+    tags = post.get("tags", [])
+    if tag not in tags:
+        tags.append(tag)
+        post["tags"] = tags
+
+    return jsonify(post["tags"]), 201
+
+
+# 8. GET /api/v1/tags - Toàn bộ danh mục thẻ trong hệ thống
+@app.get("/api/v1/tags")
+def get_all_tags():
+    all_tags = set()
+    for p in POSTS:
+        for t in p.get("tags", []):
+            all_tags.add(t)
+    return jsonify(list(all_tags)), 200
+
+
 if __name__ == "__main__":
     app.run(debug=True)
