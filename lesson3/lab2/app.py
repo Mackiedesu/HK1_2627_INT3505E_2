@@ -54,7 +54,7 @@ def get_resource(id):
 # Test route giả lập lỗi 500
 @app.get("/trigger-500")
 def trigger_500():
-    return 1 / 0
+    raise RuntimeError("Simulated unexpected server error")
 
 if __name__ == "__main__":
     app.run(debug=True)
