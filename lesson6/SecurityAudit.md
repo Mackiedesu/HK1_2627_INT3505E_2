@@ -1,9 +1,9 @@
 # Báo Cáo Kiểm Toán An Toàn API (Security Audit Report)
 ## Hệ Thống: Social Network API — Authentication & Authorization
-**Học phần:** INT3505E — Thiết kế và Phát triển API  
-**Bài tập:** Buổi 06 — Authentication & Authorization  
-**Tác giả:** Đoàn Minh Hoàng (no2000gui@gmail.com)  
-**Ngày thực hiện:** 27/10/2026  
+**Tài liệu:** Đánh giá an toàn thông tin & Kiến trúc bảo mật (Security Audit)  
+**Dự án:** Social Network RESTful API  
+**Phiên bản API:** v1.0.0  
+**Ngày lập báo cáo:** 27/10/2026  
 
 ---
 
@@ -11,12 +11,12 @@
 
 Trong kiến trúc dịch vụ mạng xã hội (Social Network API), việc phân định rõ ràng giữa **Authentication (AuthN - Bạn là ai?)** và **Authorization (AuthZ - Bạn được làm gì?)** là phòng tuyến trọng yếu nhất để bảo vệ dữ liệu người dùng.
 
-Tài liệu này thực hiện đánh giá toàn diện các rủi ro bảo mật (Security Audit) đối với 3 endpoint chính:
+Tài liệu này thực hiện đánh giá toàn diện các rủi ro bảo mật (Security Audit) đối với 3 endpoint chính của hệ thống:
 - `POST /auth/login`: Xác thực thông tin đăng nhập và cấp phát token.
 - `POST /auth/refresh`: Cấp mới Access Token bằng Refresh Token (với cơ chế Token Rotation).
 - `GET /posts/{id}`: Truy xuất nội dung bài viết với kiểm soát quyền truy cập đa tầng.
 
-Báo cáo phân tích chuyên sâu **8 điểm có thể rò rỉ dữ liệu hoặc bị khai thác** (vượt yêu cầu tối thiểu $\ge 5$ điểm), đối chiếu với danh mục **OWASP API Security Top 10 (2023)** và các nguyên tắc bảo mật từ bài giảng Buổi 06.
+Báo cáo phân tích chuyên sâu **8 điểm có thể rò rỉ dữ liệu hoặc bị khai thác** (vượt yêu cầu tối thiểu $\ge 5$ điểm), đối chiếu với danh mục **OWASP API Security Top 10 (2023)** và các tiêu chuẩn bảo mật hệ thống RESTful API hiện đại.
 
 ---
 
@@ -63,7 +63,7 @@ Nếu máy chủ bỏ qua kiểm tra tầng 3 (**Ownership check: `post.author_i
 4. Vì API thiếu bước kiểm tra quyền sở hữu đối tượng, server trả về `200 OK` kèm nội dung riêng tư của nạn nhân.
 
 #### Biện pháp khắc phục (Remediation):
-1. **Triển khai 3 lớp kiểm tra tuần tự (Slide 24, 25, 26):**
+1. **Triển khai 3 lớp kiểm tra tuần tự:**
    - Lớp 1 (AuthN): Token hợp lệ, chưa hết hạn, không nằm trong blocklist.
    - Lớp 2 (AuthZ Scope): Kiểm tra token chứa scope `posts:read`.
    - Lớp 3 (Ownership & Access Policy): Nếu `post.visibility != 'public'`, bắt buộc `post.author_id == current_user.id` HOẶC `current_user.has_role('admin')`.
@@ -103,8 +103,8 @@ Attacker gọi `GET /posts/101` và nhận được payload:
   "title": "Chia sẻ kinh nghiệm làm API",
   "author": {
     "id": 1,
-    "username": "hoang_dm",
-    "email": "hoang@internal.vnu.edu.vn",
+    "username": "john_doe",
+    "email": "john.doe@company.internal",
     "password_hash": "$2b$12$N9qo8uLOickgx2Z...",
     "phone": "0987654321",
     "is_admin": true
@@ -178,7 +178,7 @@ Attacker chuẩn bị một từ điển chứa 50.000 email nội bộ của m�
 - **Phân loại:** OWASP API2:2023 — Broken Authentication & Cryptographic Failures.
 - **Mức độ rủi ro:** 🟠 **HIGH** (Cao).
 
-#### Bối cảnh & Nguyên nhân gốc rễ (Slide 14 & 18):
+#### Bối cảnh & Nguyên nhân gốc rễ:
 Nhiều kỹ sư phát triển phần mềm lầm tưởng rằng JWT là token được "mã hóa" (Encrypted) để bảo mật bí mật. Nhưng thực tế:
 - **JWS (JSON Web Signature):** Định dạng thông dụng gồm 3 phần `Header.Payload.Signature`. Phần **Payload chỉ được mã hóa Base64URL**, hoàn toàn là **Plaintext** và bất kỳ ai có token đều giải mã và đọc được ngay lập tức bằng `base64.b64decode` hoặc công cụ trực tuyến như `jwt.io`.
 - Nếu đưa các trường như: Số định danh cá nhân (CCCD), Email, Số điện thoại, Địa chỉ, Mã giảm giá, hoặc Secret Key vào JWT payload, kẻ tấn công hoặc bất kỳ proxy trung gian nào đều đọc được toàn bộ.
@@ -208,7 +208,7 @@ Kẻ xấu thu thập access token từ lưu lượng mạng hoặc devtools và
 
 ### Điểm lộ 05: Đánh cắp Token qua XSS do lưu trữ trong `localStorage` / `sessionStorage`
 
-- **Phân loại:** OWASP API2:2023 — Broken Authentication (Slide 18, Lỗi 05).
+- **Phân loại:** OWASP API2:2023 — Broken Authentication (Client-side Storage Vulnerability).
 - **Mức độ rủi ro:** 🟠 **HIGH** (Cao).
 
 #### Bối cảnh & Nguyên nhân gốc rễ:
@@ -237,7 +237,7 @@ Bất kỳ người dùng hoặc Quản trị viên nào lướt bảng tin nhì
 
 ### Điểm lộ 06: Tấn công Replay & Thiếu Cơ Chế Thu Hồi Phiên (Broken Token Revocation)
 
-- **Phân loại:** OWASP API2:2023 — Broken Authentication (Slide 13, 15, 17, 20).
+- **Phân loại:** OWASP API2:2023 — Broken Authentication (Broken Token Revocation & Session Management).
 - **Mức độ rủi ro:** 🟠 **HIGH** (Cao).
 
 #### Bối cảnh & Nguyên nhân gốc rễ:
@@ -246,10 +246,10 @@ Bản chất của JWT là **Stateless** — máy chủ xác minh tính hợp l�
 - Nếu Refresh Token có thời hạn 30 ngày bị kẻ tấn công chụp lén (sniffing / malware), kẻ tấn công có thể liên tục gọi `/auth/refresh` để duy trì quyền truy cập vĩnh viễn dù nạn nhân đã đổi mật khẩu.
 
 #### Kịch bản tấn công:
-Nạn nhân truy cập mạng xã hội tại máy tính thư viện. Trước khi về, nạn nhân bấm "Đăng xuất". Kẻ tấn công mở lại trình duyệt hoặc lấy chuỗi token đã lưu lại trong cache/history và tiếp tục gửi request đến `/posts/1` hoặc `/auth/refresh`. Server thấy chữ ký còn đúng và `exp` chưa quá hạn nên vẫn chấp thuận cho kẻ tấn công thực hiện mọi quyền hạn.
+Nạn nhân truy cập mạng xã hội tại máy tính công cộng. Trước khi về, nạn nhân bấm "Đăng xuất". Kẻ tấn công mở lại trình duyệt hoặc lấy chuỗi token đã lưu lại trong cache/history và tiếp tục gửi request đến `/posts/1` hoặc `/auth/refresh`. Server thấy chữ ký còn đúng và `exp` chưa quá hạn nên vẫn chấp thuận cho kẻ tấn công thực hiện mọi quyền hạn.
 
 #### Biện pháp khắc phục:
-1. **Triển khai Token Blocklist với Redis / Database (Slide 15, 17):**
+1. **Triển khai Token Blocklist với Redis / Database:**
    Mỗi JWT khi phát hành được gắn một mã định danh duy nhất `jti` (JWT ID - UUID). Khi logout, ghi `jti` vào Redis với thời gian sống (TTL) bằng thời gian còn lại của token. Middleware `@jwt.token_in_blocklist_loader` sẽ từ chối ngay lập tức nếu `jti` nằm trong blocklist:
    ```python
    @jwt.token_in_blocklist_loader
@@ -257,7 +257,7 @@ Nạn nhân truy cập mạng xã hội tại máy tính thư viện. Trước k
        jti = jwt_payload["jti"]
        return db.session.query(RevokedToken.id).filter_by(jti=jti).scalar() is not None
    ```
-2. **Triển khai Refresh Token Rotation (RTR - Slide 20, 21):**
+2. **Triển khai Refresh Token Rotation (RTR):**
    - Mỗi lần refresh, refresh token cũ bị hủy ngay và cấp một token mới.
    - **Phát hiện tái sử dụng (Token Reuse Detection):** Nếu hệ thống nhận được một refresh token đã từng bị thu hồi/đã dùng, lập tức nhận diện nguy cơ rò rỉ token và **thu hồi toàn bộ các phiên hoạt động (Token Family Revocation)** của người dùng đó.
 
@@ -265,7 +265,7 @@ Nạn nhân truy cập mạng xã hội tại máy tính thư viện. Trước k
 
 ### Điểm lộ 07: Tấn công Algorithm Confusion & Chấp nhận `alg=none` (JWT Signature Bypass)
 
-- **Phân loại:** OWASP API2:2023 — Cryptographic Failures (Slide 18, Lỗi 01 & 02).
+- **Phân loại:** OWASP API2:2023 — Cryptographic Failures (Signature Verification Bypass).
 - **Mức độ rủi ro:** 🔴 **CRITICAL** (Nghiêm trọng).
 
 #### Bối cảnh & Nguyên nhân gốc rễ:
@@ -284,7 +284,7 @@ Attacker lấy file public key `public.pem` của hệ thống mạng xã hội,
 Gửi token lên `GET /posts/1`, server bị bypass và trao toàn quyền quản trị cho kẻ tấn công.
 
 #### Biện pháp khắc phục:
-1. **Cấu hình Allowlist thuật toán tường minh (Slide 18):**
+1. **Cấu hình Allowlist thuật toán tường minh:**
    Cấm tiệt đối việc tin tưởng thuật toán do token tự khai báo trong header:
    ```python
    # Cấu hình cứng thuật toán trong Flask app
@@ -297,13 +297,13 @@ Gửi token lên `GET /posts/1`, server bị bypass và trao toàn quyền quả
 
 ### Điểm lộ 08: Rò rỉ Secret & Credentials qua URL Query String, Console Log hoặc Git
 
-- **Phân loại:** OWASP API8:2023 — Security Misconfiguration & Secret Exposure (Slide 3, 6, 9).
+- **Phân loại:** OWASP API8:2023 — Security Misconfiguration & Secret Exposure.
 - **Mức độ rủi ro:** 🟡 **MEDIUM** (Trung bình đến Cao).
 
 #### Bối cảnh & Nguyên nhân gốc rễ:
 1. **Truyền token qua URL Query String (`?access_token=...`):**
    - URL đầy đủ thường bị lưu trữ vĩnh viễn trong: Web server access log (Nginx, Cloudflare), lịch sử trình duyệt người dùng, và header `Referer` khi người dùng bấm vào liên kết ngoài dẫn tới website khác.
-2. **Hardcode Secret vào Git Repository (Slide 3, Case 3):**
+2. **Hardcode Secret vào Git Repository:**
    - `FLASK_SECRET_KEY` hoặc `JWT_SECRET_KEY` bị hardcode trực tiếp trong mã nguồn rồi `git push` lên GitHub công khai.
 3. **Log Credential / Password / Token vào Console / Log File:**
    - Dùng lệnh `print(request.json)` hoặc ghi debug log toàn bộ request body tại endpoint `/auth/login`, khiến mật khẩu dạng plain text bị lưu vào file log hệ thống.
@@ -325,7 +325,7 @@ Người dùng click vào liên kết hình ảnh bên ngoài được chia sẻ
 
 ## 4. Kế hoạch hành động & Danh mục kiểm thử bảo mật (Security Checklist)
 
-Để đảm bảo hệ thống Social Network API an toàn trước khi triển khai (Production Readiness Checklist theo Slide 29):
+Để đảm bảo hệ thống Social Network API an toàn trước khi triển khai (Production Readiness Checklist):
 
 - [x] **Phân loại Endpoint:**
   - `POST /auth/login`: Public (Không yêu cầu token).
@@ -343,4 +343,4 @@ Người dùng click vào liên kết hình ảnh bên ngoài được chia sẻ
 
 ## 5. Kết luận
 
-Báo cáo kiểm toán an toàn trên đã xác định đầy đủ các rủi ro cốt lõi của hệ thống Social Network API và đề xuất giải pháp kỹ thuật cụ thể bám sát nội dung bài giảng Buổi 06. Việc kết hợp chặt chẽ giữa đặc tả **OpenAPI 3.1.0** chuẩn mực và các biện pháp phòng vệ nhiều lớp (Defense-in-Depth) đảm bảo API vận hành an toàn, tin cậy và tuân thủ các tiêu chuẩn công nghiệp hiện đại.
+Báo cáo kiểm toán an toàn trên đã xác định đầy đủ các rủi ro cốt lõi của hệ thống Social Network API và đề xuất giải pháp kỹ thuật cụ thể cho toàn bộ vòng đời xác thực và phân quyền. Việc kết hợp chặt chẽ giữa đặc tả **OpenAPI 3.1.0** chuẩn mực và các biện pháp phòng vệ nhiều lớp (Defense-in-Depth) đảm bảo API vận hành an toàn, tin cậy và tuân thủ các tiêu chuẩn công nghiệp hiện đại.

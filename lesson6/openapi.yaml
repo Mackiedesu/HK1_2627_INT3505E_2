@@ -2,21 +2,18 @@ openapi: 3.1.0
 info:
   title: Social Network API - Authentication & Authorization
   description: |
-    API đặc tả cho dịch vụ Mạng xã hội (Social Network API) theo yêu cầu Bài tập về nhà Buổi 06 (INT3505E - API Design & Development).
+    API đặc tả cho dịch vụ Mạng xã hội (Social Network API).
     
-    Tài liệu này trả lời chi tiết 3 câu hỏi bắt buộc cho từng endpoint:
-    1. **Scope nào cần thiết?**
-    2. **Những lỗi nào có thể xảy ra?**
-    3. **Những HTTP status code nào được trả về?**
+    Tài liệu này đặc tả chi tiết các endpoint và cơ chế bảo mật:
+    1. Scope nào cần thiết cho từng endpoint
+    2. Những lỗi nào có thể xảy ra và cách xử lý
+    3. Những HTTP status code tương ứng được trả về
     
     Hệ thống tích hợp mô hình phân quyền đa tầng (Multi-layered Authorization):
     - **Layer 1 - AuthN (Xác thực):** JWT Access Token (HS256, TTL ngắn 15 phút) & Refresh Token (TTL dài 30 ngày).
     - **Layer 2 - AuthZ (Phạm vi quyền - Scope):** Kiểm tra scope trong JWT claims (ví dụ: `posts:read`, `posts:write`).
     - **Layer 3 - Ownership & Resource Level (BOLA Defense):** Kiểm tra quyền sở hữu đối tượng và trạng thái hiển thị (public/private/draft).
   version: 1.0.0
-  contact:
-    name: Doan Minh Hoang
-    email: no2000gui@gmail.com
 
 servers:
   - url: http://localhost:5000/api/v1
@@ -300,8 +297,8 @@ paths:
                 visibility: "public"
                 author:
                   id: 1
-                  username: "hoang_dm"
-                  name: "Doan Minh Hoang"
+                  username: "alice"
+                  name: "Alice Johnson"
                 created_at: "2026-10-27T10:00:00Z"
                 updated_at: "2026-10-27T10:00:00Z"
         '400':
@@ -454,10 +451,10 @@ components:
           example: 1
         username:
           type: string
-          example: "hoang_dm"
+          example: "alice"
         name:
           type: string
-          example: "Doan Minh Hoang"
+          example: "Alice Johnson"
         avatar_url:
           type: string
           nullable: true

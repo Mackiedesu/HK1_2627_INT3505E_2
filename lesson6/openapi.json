@@ -2,12 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Social Network API - Authentication & Authorization",
-    "description": "API đặc tả cho dịch vụ Mạng xã hội (Social Network API) theo yêu cầu Bài tập về nhà Buổi 06 (INT3505E - API Design & Development).\n\nTài liệu này trả lời chi tiết 3 câu hỏi bắt buộc cho từng endpoint:\n1. **Scope nào cần thiết?**\n2. **Những lỗi nào có thể xảy ra?**\n3. **Những HTTP status code nào được trả về?**\n\nHệ thống tích hợp mô hình phân quyền đa tầng (Multi-layered Authorization):\n- **Layer 1 - AuthN (Xác thực):** JWT Access Token (HS256, TTL ngắn 15 phút) & Refresh Token (TTL dài 30 ngày).\n- **Layer 2 - AuthZ (Phạm vi quyền - Scope):** Kiểm tra scope trong JWT claims (ví dụ: `posts:read`, `posts:write`).\n- **Layer 3 - Ownership & Resource Level (BOLA Defense):** Kiểm tra quyền sở hữu đối tượng và trạng thái hiển thị (public/private/draft).\n",
-    "version": "1.0.0",
-    "contact": {
-      "name": "Doan Minh Hoang",
-      "email": "no2000gui@gmail.com"
-    }
+    "description": "API đặc tả cho dịch vụ Mạng xã hội (Social Network API).\n\nTài liệu này đặc tả chi tiết các endpoint và cơ chế bảo mật:\n1. Scope nào cần thiết cho từng endpoint\n2. Những lỗi nào có thể xảy ra và cách xử lý\n3. Những HTTP status code tương ứng được trả về\n\nHệ thống tích hợp mô hình phân quyền đa tầng (Multi-layered Authorization):\n- **Layer 1 - AuthN (Xác thực):** JWT Access Token (HS256, TTL ngắn 15 phút) & Refresh Token (TTL dài 30 ngày).\n- **Layer 2 - AuthZ (Phạm vi quyền - Scope):** Kiểm tra scope trong JWT claims (ví dụ: `posts:read`, `posts:write`).\n- **Layer 3 - Ownership & Resource Level (BOLA Defense):** Kiểm tra quyền sở hữu đối tượng và trạng thái hiển thị (public/private/draft).\n",
+    "version": "1.0.0"
   },
   "servers": [
     {
@@ -347,8 +343,8 @@
                   "visibility": "public",
                   "author": {
                     "id": 1,
-                    "username": "hoang_dm",
-                    "name": "Doan Minh Hoang"
+                    "username": "alice",
+                    "name": "Alice Johnson"
                   },
                   "created_at": "2026-10-27T10:00:00Z",
                   "updated_at": "2026-10-27T10:00:00Z"
@@ -552,11 +548,11 @@
           },
           "username": {
             "type": "string",
-            "example": "hoang_dm"
+            "example": "alice"
           },
           "name": {
             "type": "string",
-            "example": "Doan Minh Hoang"
+            "example": "Alice Johnson"
           },
           "avatar_url": {
             "type": "string",
