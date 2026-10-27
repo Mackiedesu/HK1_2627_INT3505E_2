@@ -1,0 +1,687 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Social Network API - Authentication & Authorization",
+    "description": "API đặc tả cho dịch vụ Mạng xã hội (Social Network API) theo yêu cầu Bài tập về nhà Buổi 06 (INT3505E - API Design & Development).\n\nTài liệu này trả lời chi tiết 3 câu hỏi bắt buộc cho từng endpoint:\n1. **Scope nào cần thiết?**\n2. **Những lỗi nào có thể xảy ra?**\n3. **Những HTTP status code nào được trả về?**\n\nHệ thống tích hợp mô hình phân quyền đa tầng (Multi-layered Authorization):\n- **Layer 1 - AuthN (Xác thực):** JWT Access Token (HS256, TTL ngắn 15 phút) & Refresh Token (TTL dài 30 ngày).\n- **Layer 2 - AuthZ (Phạm vi quyền - Scope):** Kiểm tra scope trong JWT claims (ví dụ: `posts:read`, `posts:write`).\n- **Layer 3 - Ownership & Resource Level (BOLA Defense):** Kiểm tra quyền sở hữu đối tượng và trạng thái hiển thị (public/private/draft).\n",
+    "version": "1.0.0",
+    "contact": {
+      "name": "Doan Minh Hoang",
+      "email": "no2000gui@gmail.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000/api/v1",
+      "description": "Local Development Server"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Authentication",
+      "description": "Xác thực danh tính người dùng, cấp phát và làm mới JSON Web Token (JWT)"
+    },
+    {
+      "name": "Posts",
+      "description": "Quản lý và truy xuất nội dung bài viết với cơ chế kiểm soát truy cập đối tượng (BOLA Defense)"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Xác thực người dùng và cấp phát Access Token + Refresh Token",
+        "description": "Endpoint công khai dùng để đăng nhập bằng thông tin xác thực (`email` và `password`).\nSau khi kiểm tra mật khẩu bằng thuật toán an toàn (Argon2id / bcrypt), server sẽ cấp một cặp token:\n- `access_token`: JWT chứa thông tin định danh (`sub`), vai trò (`roles`), phạm vi quyền (`scopes`), hạn dùng 15 phút.\n- `refresh_token`: JWT chứa mã định danh duy nhất (`jti`), dùng để lấy access token mới khi token cũ hết hạn.\n\n### Trả lời câu hỏi yêu cầu trong Bài tập:\n- **Scope cần thiết:** `None` (Endpoint public, không yêu cầu xác thực trước, caller chưa có token).\n- **Lỗi có thể xảy ra:**\n  - `bad_request`: Body JSON không đúng cú pháp, thiếu payload hoặc thiếu trường bắt buộc.\n  - `invalid_credentials`: Sai email hoặc sai mật khẩu.\n  - `validation_error`: Định dạng email không hợp lệ hoặc mật khẩu rỗng.\n  - `rate_limit_exceeded`: Vượt quá số lần đăng nhập cho phép (chống Credential Stuffing & Brute-force).\n  - `account_locked`: Tài khoản bị tạm khóa do vi phạm hoặc nghi vấn bảo mật.\n  - `internal_error`: Lỗi kết nối CSDL hoặc lỗi hệ thống xử lý hàm băm mật khẩu.\n- **Status code được trả:** `200`, `400`, `401`, `422`, `429`, `500`.\n",
+        "operationId": "loginUser",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "email": "alice@social.net",
+                "password": "SuperSecretPassword123!"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Đăng nhập thành công, trả về cặp Access Token và Refresh Token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSuccessResponse"
+                },
+                "example": {
+                  "token_type": "Bearer",
+                  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZXMiOlsidXNlciJdLCJzY29wZXMiOlsicG9zdHM6cmVhZCJdfQ.signature",
+                  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidHlwZSI6InJlZnJlc2giLCJqdGkiOiJmOGMzMWExOC02N2Q5In0.signature",
+                  "expires_in": 900,
+                  "refresh_expires_in": 2592000
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Yêu cầu không hợp lệ (Malformed JSON body hoặc thiếu Content-Type).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "bad_request",
+                  "message": "Request body must be valid JSON with 'email' and 'password'",
+                  "status": 400
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Sai thông tin đăng nhập (Email không tồn tại hoặc mật khẩu sai). Sử dụng thông báo chung để ngăn chặn dò quét tài khoản (User Enumeration).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "invalid_credentials",
+                  "message": "Invalid email or password",
+                  "status": 401
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Dữ liệu đầu vào không thỏa mãn validation (Email sai định dạng, password quá dài vượt giới hạn bcrypt 72 bytes).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationErrorResponse"
+                },
+                "example": {
+                  "error": "validation_error",
+                  "message": "Email format is invalid",
+                  "status": 422,
+                  "details": {
+                    "field": "email",
+                    "rule": "format_email"
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Vượt quá giới hạn tần suất gửi yêu cầu (Rate Limit - ví dụ tối đa 5 lần thử sai / 15 phút).",
+            "headers": {
+              "Retry-After": {
+                "schema": {
+                  "type": "integer"
+                },
+                "description": "Số giây client cần chờ trước khi thử lại"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "rate_limit_exceeded",
+                  "message": "Too many failed login attempts. Please try again later.",
+                  "status": 429
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Lỗi máy chủ nội bộ.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "internal_server_error",
+                  "message": "An unexpected error occurred on the server",
+                  "status": 500
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/refresh": {
+      "post": {
+        "tags": [
+          "Authentication"
+        ],
+        "summary": "Đổi Refresh Token lấy Access Token mới (kèm Refresh Token Rotation)",
+        "description": "Endpoint cho phép client lấy Access Token mới khi access token hiện tại đã hết hạn mà không bắt người dùng phải đăng nhập lại.\nÁp dụng mô hình **Refresh Token Rotation (RTR)**: Mỗi lần gọi refresh thành công, refresh token cũ sẽ bị đưa vào danh sách đen (blocklist/revoked) và một refresh token mới được phát hành.\n\n### Trả lời câu hỏi yêu cầu trong Bài tập:\n- **Scope cần thiết:** `offline_access` hoặc claim token type là `refresh`. Token được gửi phải là **Refresh Token hợp lệ**. Nếu client gửi Access Token vào endpoint này, hệ thống sẽ từ chối (`wrong_token_type`).\n- **Lỗi có thể xảy ra:**\n  - `missing_token`: Thiếu header Authorization hoặc thiếu refresh token trong body.\n  - `token_expired`: Refresh token đã quá hạn sử dụng (ví dụ quá 30 ngày).\n  - `token_revoked`: Refresh token đã bị thu hồi (người dùng đã logout hoặc token đã bị xoay vòng).\n  - `token_reuse_detected`: Phát hiện token cũ đã bị sử dụng lại (dấu hiệu rò rỉ token) -> Lập tức thu hồi toàn bộ phiên (Token Family Revocation).\n  - `invalid_token`: Token giả mạo, sai chữ ký cryptographic, sai thuật toán (algorithm mismatch).\n  - `wrong_token_type`: Client gửi Access Token thay vì Refresh Token.\n  - `account_disabled`: Tài khoản người dùng đã bị khóa sau khi token được phát hành.\n  - `rate_limit_exceeded`: Tần suất refresh quá nhanh vượt ngưỡng an toàn.\n  - `internal_error`: Lỗi kiểm tra database / redis token blocklist.\n- **Status code được trả:** `200`, `400`, `401`, `403`, `429`, `500`.\n",
+        "operationId": "refreshTokens",
+        "security": [
+          {
+            "BearerRefreshToken": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Tùy chọn gửi refresh token trong body JSON nếu không gửi qua Authorization header",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "refresh_token": {
+                    "type": "string",
+                    "description": "JWT Refresh token (nếu không đặt trong header)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Cấp phát Access Token mới và xoay vòng Refresh Token thành công.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSuccessResponse"
+                },
+                "example": {
+                  "token_type": "Bearer",
+                  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwicm9sZXMiOlsidXNlciJdLCJzY29wZXMiOlsicG9zdHM6cmVhZCJdfQ.signature_new",
+                  "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwidHlwZSI6InJlZnJlc2giLCJqdGkiOiJhM2Q5ZmM0Yi0xZTJkIn0.signature_rotated",
+                  "expires_in": 900,
+                  "refresh_expires_in": 2592000
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Yêu cầu không đúng định dạng.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "bad_request",
+                  "message": "No token provided in Authorization header or request body",
+                  "status": 400
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Xác thực thất bại (Token hết hạn, sai chữ ký, token bị thu hồi, hoặc gửi nhầm Access Token).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "token_expired": {
+                    "summary": "Token đã hết hạn",
+                    "value": {
+                      "error": "token_expired",
+                      "message": "The refresh token has expired. Please log in again.",
+                      "status": 401
+                    }
+                  },
+                  "token_revoked": {
+                    "summary": "Token đã bị thu hồi",
+                    "value": {
+                      "error": "token_revoked",
+                      "message": "The refresh token has been revoked",
+                      "status": 401
+                    }
+                  },
+                  "wrong_token_type": {
+                    "summary": "Gửi nhầm Access Token",
+                    "value": {
+                      "error": "wrong_token_type",
+                      "message": "Only refresh tokens are allowed on this endpoint",
+                      "status": 401
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Từ chối truy cập (Phát hiện tấn công dùng lại token cũ / Token Reuse Detected hoặc tài khoản bị vô hiệu hóa).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "token_reuse_detected",
+                  "message": "Reused refresh token detected. All active sessions for this account have been revoked.",
+                  "status": 403
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Gửi quá nhiều yêu cầu làm mới token trong thời gian ngắn.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "rate_limit_exceeded",
+                  "message": "Rate limit exceeded for token refresh",
+                  "status": 429
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Lỗi máy chủ khi truy vấn danh sách đen hoặc mã hóa token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "internal_server_error",
+                  "message": "Unable to complete token refresh due to server error",
+                  "status": 500
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/posts/{id}": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "summary": "Lấy chi tiết bài viết mạng xã hội theo ID (với kiểm tra BOLA & Scope)",
+        "description": "Truy xuất chi tiết một bài viết mạng xã hội. Endpoint áp dụng kiến trúc bảo mật 3 lớp (Slide 24, 25, 26):\n1. **AuthN:** Kiểm tra JWT Access Token hợp lệ, còn hạn (`exp`), chưa bị thu hồi (`jti`).\n2. **AuthZ Scope:** Kiểm tra JWT claims xem người dùng có scope `posts:read` hay không.\n3. **AuthZ Ownership / BOLA Defense (OWASP API1:2023):**\n   - Nếu bài viết có trạng thái hiển thị `public`: Bất kỳ người dùng hợp lệ nào có scope `posts:read` đều có thể đọc.\n   - Nếu bài viết có trạng thái `private` hoặc `draft`: Chỉ chủ sở hữu bài viết (`author_id == current_user.id`) HOẶC người dùng có quyền quản trị viên (`roles` chứa `admin`) mới được phép truy cập.\n   - Nếu người dùng bình thường cố truy cập bài viết riêng tư của người khác: Trả về `404 Not Found` (Masking 403 thành 404) để ngăn chặn kẻ tấn công dò quét sự tồn tại của ID (ID Enumeration).\n\n### Trả lời câu hỏi yêu cầu trong Bài tập:\n- **Scope cần thiết:** `posts:read`.\n- **Lỗi có thể xảy ra:**\n  - `bad_request`: Tham số `{id}` trên đường dẫn không hợp lệ (không phải số nguyên dương).\n  - `missing_token` / `invalid_token` / `token_expired`: Không có Bearer token, token hết hạn, hoặc token giả mạo.\n  - `insufficient_scope`: Token hợp lệ nhưng thiếu scope `posts:read`.\n  - `forbidden`: Token hợp lệ, đủ scope nhưng vi phạm quyền truy cập đối tượng (BOLA violation: truy cập bài riêng tư của người khác khi không phải admin).\n  - `not_found`: Bài viết không tồn tại trong hệ thống, hoặc bị ẩn do chính sách bảo mật bài riêng tư.\n  - `rate_limit_exceeded`: Gửi quá nhiều request đọc bài viết liên tục.\n  - `internal_error`: Lỗi kết nối cơ sở dữ liệu.\n- **Status code được trả:** `200`, `400`, `401`, `403`, `404`, `429`, `500`.\n",
+        "operationId": "getPostById",
+        "security": [
+          {
+            "BearerAccessToken": [
+              "posts:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "description": "Mã định danh số nguyên dương của bài viết",
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 101
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Truy xuất bài viết thành công. Dữ liệu được lọc qua DTO an toàn (không để lộ trường nhạy cảm của tác giả - OWASP API3).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostResponse"
+                },
+                "example": {
+                  "id": 101,
+                  "title": "Khai phá kiến trúc phân quyền trong RESTful API",
+                  "content": "Trong thiết kế API hiện đại, AuthN xác định bạn là ai, còn AuthZ quyết định bạn được làm gì...",
+                  "visibility": "public",
+                  "author": {
+                    "id": 1,
+                    "username": "hoang_dm",
+                    "name": "Doan Minh Hoang"
+                  },
+                  "created_at": "2026-10-27T10:00:00Z",
+                  "updated_at": "2026-10-27T10:00:00Z"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Tham số đường dẫn không hợp lệ (`id` không phải số nguyên dương).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "bad_request",
+                  "message": "Post ID must be a positive integer",
+                  "status": 400
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Thiếu hoặc token không hợp lệ (hết hạn, sai chữ ký, hoặc đã bị thu hồi).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "unauthorized",
+                  "message": "Missing or invalid Bearer access token",
+                  "status": 401
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Bị cấm truy cập do thiếu scope `posts:read` hoặc không có quyền xem bài viết (BOLA Policy).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "insufficient_scope": {
+                    "summary": "Thiếu scope posts:read",
+                    "value": {
+                      "error": "insufficient_scope",
+                      "message": "Required scope 'posts:read' is missing from access token",
+                      "need_all_of": [
+                        "posts:read"
+                      ],
+                      "status": 403
+                    }
+                  },
+                  "forbidden_bola": {
+                    "summary": "Vi phạm quyền đối tượng (BOLA)",
+                    "value": {
+                      "error": "forbidden",
+                      "message": "You do not have permission to view this private post",
+                      "status": 403
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Bài viết không tồn tại (hoặc được mặt nạ hóa 404 cho bài riêng tư để chống Resource Enumeration).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "not_found",
+                  "message": "Post not found",
+                  "status": 404
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Vượt quá giới hạn tần suất truy xuất bài viết.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "rate_limit_exceeded",
+                  "message": "Too many requests to read posts",
+                  "status": 429
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Lỗi máy chủ nội bộ.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "error": "internal_server_error",
+                  "message": "Database query failed while fetching post",
+                  "status": 500
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "BearerAccessToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JSON Web Token (Access Token) được gửi trong header `Authorization: Bearer <access_token>`.\n- Thuật toán: HS256 (hoặc RS256).\n- Thời gian sống (TTL): 15 phút (900s).\n- Claims: `sub` (User ID), `roles` (danh sách vai trò), `scopes` (danh sách quyền), `exp`, `iat`, `jti`.\n"
+      },
+      "BearerRefreshToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "bearerFormat": "JWT",
+        "description": "JSON Web Token (Refresh Token) dùng riêng cho endpoint `/auth/refresh`.\n- Claim `type`: \"refresh\".\n- Thời gian sống (TTL): 30 ngày (2,592,000s).\n- Có hỗ trợ danh sách đen thu hồi (Revocation Blocklist) và cơ chế Token Rotation.\n"
+      }
+    },
+    "schemas": {
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "description": "Địa chỉ email người dùng đã đăng ký",
+            "example": "alice@social.net"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "minLength": 8,
+            "maxLength": 128,
+            "description": "Mật khẩu dạng plain text (được bảo vệ qua HTTPS/TLS khi truyền)",
+            "example": "SuperSecretPassword123!"
+          }
+        }
+      },
+      "AuthSuccessResponse": {
+        "type": "object",
+        "required": [
+          "token_type",
+          "access_token",
+          "refresh_token",
+          "expires_in"
+        ],
+        "properties": {
+          "token_type": {
+            "type": "string",
+            "example": "Bearer"
+          },
+          "access_token": {
+            "type": "string",
+            "description": "JWT Access Token dùng để gọi các API có bảo vệ"
+          },
+          "refresh_token": {
+            "type": "string",
+            "description": "JWT Refresh Token dùng để đổi Access Token mới"
+          },
+          "expires_in": {
+            "type": "integer",
+            "description": "Thời gian hiệu lực của access token tính bằng giây (ví dụ 900 = 15 phút)",
+            "example": 900
+          },
+          "refresh_expires_in": {
+            "type": "integer",
+            "description": "Thời gian hiệu lực của refresh token tính bằng giây (ví dụ 2592000 = 30 ngày)",
+            "example": 2592000
+          }
+        }
+      },
+      "AuthorDTO": {
+        "type": "object",
+        "required": [
+          "id",
+          "username",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "example": "hoang_dm"
+          },
+          "name": {
+            "type": "string",
+            "example": "Doan Minh Hoang"
+          },
+          "avatar_url": {
+            "type": "string",
+            "nullable": true,
+            "example": "https://social.net/avatars/user1.png"
+          }
+        }
+      },
+      "PostResponse": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "content",
+          "visibility",
+          "author",
+          "created_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 101
+          },
+          "title": {
+            "type": "string",
+            "example": "Khai phá kiến trúc phân quyền trong RESTful API"
+          },
+          "content": {
+            "type": "string",
+            "example": "Trong thiết kế API hiện đại, AuthN xác định bạn là ai, còn AuthZ quyết định bạn được làm gì..."
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "public",
+              "private",
+              "draft"
+            ],
+            "example": "public"
+          },
+          "author": {
+            "$ref": "#/components/schemas/AuthorDTO"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-27T10:00:00Z"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-10-27T10:00:00Z"
+          }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "message",
+          "status"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "description": "Mã định danh lỗi (machine-readable)",
+            "example": "unauthorized"
+          },
+          "message": {
+            "type": "string",
+            "description": "Thông báo chi tiết thân thiện với người dùng",
+            "example": "Authentication credential is invalid or missing"
+          },
+          "status": {
+            "type": "integer",
+            "description": "HTTP status code tương ứng",
+            "example": 401
+          },
+          "need_all_of": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Danh sách scope cần có nếu bị lỗi 403 insufficient_scope",
+            "example": [
+              "posts:read"
+            ]
+          }
+        }
+      },
+      "ValidationErrorResponse": {
+        "type": "object",
+        "required": [
+          "error",
+          "message",
+          "status"
+        ],
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "validation_error"
+          },
+          "message": {
+            "type": "string",
+            "example": "Invalid input payload"
+          },
+          "status": {
+            "type": "integer",
+            "example": 422
+          },
+          "details": {
+            "type": "object",
+            "properties": {
+              "field": {
+                "type": "string",
+                "example": "email"
+              },
+              "rule": {
+                "type": "string",
+                "example": "format_email"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
