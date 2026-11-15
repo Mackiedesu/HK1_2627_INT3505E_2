@@ -1,0 +1,55 @@
+# Spectral ruleset for Lab 2 — OpenAPI Contract Testing
+extends:
+  - ["spectral:oas", "recommended"]
+
+rules:
+  # Disable stylistic metadata warnings not required by the Books API starter spec
+  info-contact: off
+  operation-description: off
+  operation-tags: off
+
+  # Enforce operationId on every endpoint (catches Defect 1: GET /books missing operationId)
+  operation-operationId: error
+
+  # Defect 2 rule: HTTP 204 No Content responses must not declare a response body ('content')
+  no-204-response-body:
+    description: "HTTP 204 No Content responses must not define a response body (content)."
+    message: "Response 204 must not contain a 'content' body."
+    severity: error
+    given: "$.paths[*][*].responses['204']"
+    then:
+      field: content
+      function: falsy
+
+  # Defect 3 rule: Book.year must match the SQLAlchemy model type ('integer'), not 'string'
+  book-year-must-be-integer:
+    description: "Book.year property must have type 'integer' to match the backend model."
+    message: "Book.year must be of type 'integer' (found '{{value}}')."
+    severity: error
+    given: "$.components.schemas.Book.properties.year"
+    then:
+      field: type
+      function: pattern
+      functionOptions:
+        match: "^integer$"
+
+  # Custom Rule (Lab 2 requirement):
+  # Every HTTP 200 response object schema (inline or referenced) must declare > 0 properties.
+  # What case does it catch?
+  # It catches incomplete or placeholder 200 OK object schemas (e.g., `schema: { type: object }`
+  # or `properties: {}`) that lack explicit field definitions, preventing undocumented/untyped
+  # response payloads from passing contract linting.
+  response-200-non-empty-object-schema:
+    description: "HTTP 200 object schemas must define at least 1 property (more than 0 fields)."
+    message: "HTTP 200 object schema must declare at least one field in 'properties'."
+    severity: error
+    given:
+      - "$.paths[*][*].responses['200'].content['application/json'].schema[?(@.type == 'object')]"
+      - "$.paths[*][*].responses['200'].content['application/json'].schema.items[?(@.type == 'object')]"
+    then:
+      - field: properties
+        function: truthy
+      - field: properties
+        function: length
+        functionOptions:
+          min: 1
