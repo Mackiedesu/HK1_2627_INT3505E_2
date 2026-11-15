@@ -1,4 +1,4 @@
-"""Lab 4 starter: weighted tasks, optional 404, no deliberate server errors.
+"""Lab 4 starter: weighted tasks, optional 404, and 1% simulated failure in search_by_year.
 
 Run: locust -f performance/locustfile.py --headless -H http://127.0.0.1:5000 \
          -u 10 -r 2 -t 30s --html reports/A.html
@@ -13,6 +13,7 @@ _counter = itertools.count(1)
 
 class BooksUser(HttpUser):
     wait_time = between(1, 3)
+    host = "http://127.0.0.1:5000"
 
     @task(3)
     def list_books(self):
@@ -35,9 +36,25 @@ class BooksUser(HttpUser):
         unique = next(_counter)
         self.client.post(
             "/books",
-            json={"title": f"Load test {unique}", "author": "locust"},
+            json={"title": f"Load test {unique}", "author": "locust", "year": random.randint(1990, 2025)},
             name="POST /books",
         )
 
-    # LAB 4: add search_by_year() and explain any injected failures.
-    # A client-side artificial failure is not a real HTTP 500 from the server.
+    @task(2)
+    def search_by_year(self):
+        """
+        Query books filtered by year and inject a 1% simulated failure rate.
+        Note: The 1% injected failure is a client-side artificial failure marked via
+        `response.failure("Simulated 500 Internal Server Error (1% injected)")` in Locust
+        (the Flask server itself returns HTTP 200 unless overloaded).
+        """
+        year = random.randint(1990, 2025)
+        with self.client.get(
+            f"/books?year={year}", name="GET /books?year={year}", catch_response=True
+        ) as response:
+            if response.status_code != 200:
+                response.failure(f"HTTP {response.status_code}")
+            elif random.random() < 0.01:
+                response.failure("Simulated 500 Internal Server Error (1% client-side injected)")
+            else:
+                response.success()
