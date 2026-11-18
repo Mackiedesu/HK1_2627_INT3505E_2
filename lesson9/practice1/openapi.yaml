@@ -1,0 +1,143 @@
+openapi: 3.0.3
+info:
+  title: User API (URI Path Versioning v1 -> v2)
+  version: 2.0.0
+  description: >
+    Practice 1: URI Path Versioning with Flask Blueprints.
+    v1 exposes full_name and is marked deprecated with a Sunset header.
+    v2 introduces a breaking schema change (first_name + last_name) and POST /users.
+servers:
+  - url: http://localhost:5000
+paths:
+  /api/v1/users/{uid}:
+    get:
+      summary: Get user by ID (v1 - Deprecated)
+      deprecated: true
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User found (v1 schema)
+          headers:
+            Sunset:
+              description: HTTP-date when v1 will be retired (RFC 8594)
+              schema:
+                type: string
+            Deprecation:
+              description: Indicates the endpoint is deprecated
+              schema:
+                type: string
+            Link:
+              description: Link to successor version
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserV1"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorNotFound"
+
+  /api/v2/users/{uid}:
+    get:
+      summary: Get user by ID (v2)
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: User found (v2 schema)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserV2"
+        "404":
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorNotFound"
+
+  /api/v2/users:
+    post:
+      summary: Create a new user (v2)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserCreateV2"
+      responses:
+        "201":
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserV2"
+        "400":
+          description: Validation error
+
+components:
+  schemas:
+    UserV1:
+      type: object
+      required: [id, full_name, email]
+      properties:
+        id:
+          type: integer
+          example: 1
+        full_name:
+          type: string
+          example: "Văn Nguyễn"
+        email:
+          type: string
+          format: email
+          example: "a@vnu.vn"
+    UserV2:
+      type: object
+      required: [id, first_name, last_name, email]
+      properties:
+        id:
+          type: integer
+          example: 1
+        first_name:
+          type: string
+          example: "Văn"
+        last_name:
+          type: string
+          example: "Nguyễn"
+        email:
+          type: string
+          format: email
+          example: "a@vnu.vn"
+    UserCreateV2:
+      type: object
+      required: [first_name, last_name, email]
+      properties:
+        first_name:
+          type: string
+          example: "Minh"
+        last_name:
+          type: string
+          example: "Lê"
+        email:
+          type: string
+          format: email
+          example: "c@vnu.vn"
+    ErrorNotFound:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "nf"
